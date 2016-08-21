@@ -3,7 +3,7 @@
 #define HEARTBEAT_INTERVAL 15000UL
 unsigned long lastheartbeat;
 
-bool WebSocketClient::connect(char thehostname[], int theport,char theprotocol[]) {
+bool WebSocketClient::connect(char thehostname[], int theport,const char theprotocol[]) {
 	if (!client.connect(thehostname, theport)) return false;
 	hostname = thehostname;
 	protocol = theprotocol;
@@ -27,7 +27,7 @@ void WebSocketClient::monitor() {
 	if ((now - lastheartbeat) >= HEARTBEAT_INTERVAL) {
 		lastheartbeat = now;
 		if (client.connected()){
-			char *data = "{}";
+			const char *data = "{}";
 			client.print((char)-127);
 			client.print((char)strlen(data));
 			client.print(data);
@@ -47,17 +47,28 @@ void WebSocketClient::monitor() {
 		readLine();
 		dataptr = databuffer;
 	}
-	
-    if (dataArrivedDelegate != NULL) {
-        dataArrivedDelegate(*this, databuffer);
-    }
+
+	size_t sizes = strlen(databuffer);
+
+	char* new_data = new char[sizes-2];
+	for (int i = 0; i< sizes-2; i+=1){
+	new_data[i] = databuffer[i+2];
+	}
+	new_data[sizes-2] = '\0';
+	onData(new_data);
+
+}
+
+void WebSocketClient::onData(char* new_data){
+    if (dataArrivedDelegate != NULL) 
+		dataArrivedDelegate(*this, new_data);
 }
 
 void WebSocketClient::setDataArrivedDelegate(DataArrivedDelegate newdataArrivedDelegate) {
 	  dataArrivedDelegate = newdataArrivedDelegate;
 }
 
-void WebSocketClient::sendHandshake(char hostname[],int port,char protocol[]) {
+void WebSocketClient::sendHandshake(char hostname[],int port,const char protocol[]) {
 	client.print(F("GET /"));
 	client.println(F(" HTTP/1.1"));
 	client.print(F("Host: "));
@@ -113,8 +124,9 @@ void WebSocketClient::readLine() {
 		else if (c == 255) Serial.print(F("0x255"));
 		else if (c == '\r') {;}
 		else if (c == '\n') break;
-		else if (c < 20) {;} // clear character ....
-		else *dataptr++ = c;
+		// else if (c < 20) {;} // clear character ....
+		else
+			*dataptr++ = c;
 	}
 	*dataptr = 0;
 }
